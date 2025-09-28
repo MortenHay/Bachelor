@@ -2,7 +2,7 @@ import numpy as np
 
 
 class DroopController:
-    def __init__(self, Kp=1, reference=0, offset=0):
+    def __init__(self, Kp=1.0, reference=0.0, offset=0.0):
         self.Kp = Kp
         self.reference = reference
         self.offset = offset
