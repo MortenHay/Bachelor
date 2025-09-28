@@ -9,7 +9,7 @@ id = config["pi_id"]
 ip = config["ip"]
 port = config["port"]
 
-url = f"http://localhost:{port}?pi_id={id}"
+url = f"http://{ip}:{port}?pi_id={id}"
 response = requests.get(url)
 data = response.json()
 
