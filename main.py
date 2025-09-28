@@ -7,6 +7,7 @@ import datetime as dt
 
 P_max = 10.0  # in MW
 freq_span = 0.4  # FCR-D Spans 400 mHz
+MTU = dt.timedelta(hours=1)
 
 
 def clamp(x, x_min, x_max):
@@ -23,6 +24,19 @@ def update_controller(droop: DroopController, meas):
     return -clamp(droop.update(meas), -P_max, P_max)  # type: ignore
 
 
+def get_current_Pmax(now: dt.datetime):
+    df = pd.read_csv("schedule.csv", index_col=0)
+    df.index = pd.DatetimeIndex(df.index)
+    P_max = 0.0
+    for i in range(len(df)):
+        if now < df.index[i]:  # type: ignore
+            break
+        t_start = df.index[i]
+        P_max = df.loc[t_start, "P_max"]
+    t_end = t_start + MTU  # type: ignore
+    return P_max, t_end
+
+
 # Kp is P_max size over span of FCR-D (400 mHz)
 Kp = P_max / freq_span
 
@@ -37,19 +51,15 @@ plt.figure()
 plt.plot(meas, res)
 plt.show()"""
 
+now = dt.datetime.now()
+P_max, t_end = get_current_Pmax(now)  # type:ignore
 
 # main loop
 while True:
     now = dt.datetime.now()
-    df = pd.read_csv("schedule.csv", index_col=0)
-    df.index = pd.DatetimeIndex(df.index)
-    P_max = 0.0
-    for i in range(len(df)):
-        print(df.index[i])
-        if now < df.index[i]:  # type: ignore
-            break
-        P_max = df.loc[df.index[i], "P_max"]
-    droop.set_Kp(P_max / freq_span)  # type: ignore
+    if now > t_end:  # type: ignore
+        P_max, t_end = get_current_Pmax(now)
+        droop.set_Kp(P_max / freq_span)  # type: ignore
     meas = 50 + (np.random.random())
     print(f"{meas} Hz")
     activation = update_controller(droop, meas)
