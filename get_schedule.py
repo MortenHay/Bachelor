@@ -1,8 +1,11 @@
 import requests
 import pandas as pd
 import json
+import os
 
-with open("config.json", "r") as f:
+dir = os.path.dirname(os.path.abspath(__file__))
+
+with open(f"{dir}/config.json", "r") as f:
     config = json.load(f)
 
 id = config["pi_id"]
