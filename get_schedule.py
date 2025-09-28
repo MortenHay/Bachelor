@@ -17,4 +17,4 @@ response = requests.get(url)
 data = response.json()
 
 df = pd.DataFrame.from_dict(data=data, orient="index", columns=["P_max"])
-df.to_csv("schedule.csv")
+df.to_csv(f"{dir}/schedule.csv")
