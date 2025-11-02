@@ -1,10 +1,19 @@
 import asyncio
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 import json
+import datetime as dt
 
 
-async def establish_connection(websocket):
-    message = json.dumps({"type": "init", "capacity": "20"})
+async def establish_connection(websocket, key, parameters):
+    message = json.dumps(
+        {
+            "type": "init",
+            "name": parameters["name"],
+            "key": key,
+            "capacity": parameters["capacity"],
+        }
+    )
     await websocket.send(message)
     response = await websocket.recv()
     data = json.loads(response)
@@ -12,32 +21,47 @@ async def establish_connection(websocket):
         print(data["message"])
 
 
-async def consumer_handler(websocket):
+async def consumer_handler(websocket, parameters: dict):
     async for message in websocket:
+        print("tock")
         data = json.loads(message)
-        if data["type"] == "measurement":
+        if data["type"] == "droop constant":
             print(data["value"])
+            parameters["droop constant"] = data["value"]
+        elif data["type"] == "delta P supervisor":
+            print(f"Delta P supervisor: {data['value']}")
+            parameters["Delta P supervisor"] = data["value"]
 
 
-async def producer_handler(websocket):
+async def producer_handler(websocket, parameters):
     while True:
-        ...
+        data = {
+            "type": "measurement",
+            "delta P": parameters["delta P"],
+            "capacity": parameters["capacity"],
+        }
+        message = json.dumps(data)
+        await websocket.send(message)
+        await asyncio.sleep(1)
 
 
-async def main():
+async def main(parameters: dict):
     uri = "ws://localhost:12345"
+    with open("key.txt") as f:
+        key = f.read()
     async with connect(uri) as websocket:
-        await establish_connection(websocket)
+        await establish_connection(websocket, key, parameters)
 
-    consumer_task = asyncio.create_task(consumer_handler(websocket))
-    producer_task = asyncio.create_task(producer_handler(websocket))
-    done, pending = await asyncio.wait(
-        [consumer_task, producer_task],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for task in pending:
-        task.cancel()
+        consumer_task = asyncio.create_task(consumer_handler(websocket, parameters))
+        producer_task = asyncio.create_task(producer_handler(websocket, parameters))
+        done, pending = await asyncio.wait(
+            [consumer_task, producer_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        print(done)
+        for task in pending:
+            task.cancel()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main({"value": 0}))

@@ -209,3 +209,5 @@ __marimo__/
 # Custom
 *.csv
 *.json
+key.txt
+registered_units.txt
