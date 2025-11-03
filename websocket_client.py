@@ -23,7 +23,6 @@ async def establish_connection(websocket, key, parameters):
 
 async def consumer_handler(websocket, parameters: dict):
     async for message in websocket:
-        print("tock")
         data = json.loads(message)
         if data["type"] == "droop constant":
             print(data["value"])
@@ -46,12 +45,11 @@ async def producer_handler(websocket, parameters):
 
 
 async def main(parameters: dict):
-    uri = "ws://localhost:12345"
+    uri = f"ws://{parameters['supervisor ip']}:{parameters['supervisor port']}"
     with open("key.txt") as f:
         key = f.read()
     async with connect(uri) as websocket:
         await establish_connection(websocket, key, parameters)
-
         consumer_task = asyncio.create_task(consumer_handler(websocket, parameters))
         producer_task = asyncio.create_task(producer_handler(websocket, parameters))
         done, pending = await asyncio.wait(

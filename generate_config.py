@@ -1,7 +1,7 @@
 import json
 
 config = {
-    "pi_id": "pi_1",
+    "name": "pi_1",
     "ip": "192.168.0.99",
     "port": 48630,
     "capacity": 1e6,
