@@ -78,21 +78,27 @@ async def main():
     t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
     try:
         while True:
-            droop.set_Kp(1 / parameters["droop constant"])
-            delta_P_edge = droop.update(
-                await measure_frequency(modbus_client, config["Line Frequency"])
-            )
-            baseline, current_index = await measure_baseline(
-                baseline_list, current_index, baseline_list_size
-            )
-            delta_P = delta_P_edge + parameters["delta P supervisor"]
-            delta_P = clamp(delta_P, 0, baseline)
-            P_set = delta_P - baseline
-            if P_set > 0:
+            while not t1.done():
+                droop.set_R(parameters["droop constant"])
+                delta_P_edge = droop.update(
+                    await measure_frequency(modbus_client, config["Line Frequency"])
+                )
+                baseline, current_index = await measure_baseline(
+                    baseline_list, current_index, baseline_list_size
+                )
+                delta_P = delta_P_edge + parameters["delta P supervisor"]
+                # Flip sign of droop
+                delta_P = clamp(delta_P, baseline, 0)
+                P_set = baseline + delta_P
                 await modbus_send_Pset(modbus_client, config["WMaxLimPct"], P_set)
-            P_measurement = await measure_ac_power(modbus_client, config["AC Power"])
-            parameters["delta P"] = baseline - P_measurement  # type: ignore #
-            await asyncio.sleep(1)
+                P_measurement = await measure_ac_power(
+                    modbus_client, config["AC Power"]
+                )
+                parameters["delta P"] = baseline - P_measurement  # type: ignore #
+                await asyncio.sleep(1)
+            print("Lost connection to supervisor.")
+            print("Reconnecting ...")
+            t1 = asyncio.create_task(websocket_client.main(parameters))
 
     finally:
         modbus_client.close()

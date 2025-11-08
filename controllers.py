@@ -1,9 +1,12 @@
 import numpy as np
+import datetime as dt
+import pandas as pd
+from json import dump
 
 
 class DroopController:
-    def __init__(self, Kp=1.0, reference=0.0, offset=0.0):
-        self.Kp = Kp
+    def __init__(self, R=1.0, reference=0.0, offset=0.0):
+        self.R = R
         self.reference = reference
         self.offset = offset
 
@@ -14,13 +17,13 @@ class DroopController:
             return 0
         if meas > self.reference:
             # Proportional control logic with offset from reference
-            return self.Kp * (self.reference + self.offset - meas)
+            return (self.reference + self.offset - meas) / self.R
         else:
-            return self.Kp * (self.reference - self.offset - meas)
+            return (self.reference - self.offset - meas) / self.R
 
     # Set functions
-    def set_Kp(self, Kp):
-        self.Kp = Kp
+    def set_R(self, R):
+        self.Kp = R
 
     def set_reference(self, reference):
         self.reference = reference
@@ -39,7 +42,7 @@ class IntegralController:
     def update(self, measurement, interval):
         # Main integral control action
         # Add area under error curve since last measurement
-        self.current_value += (measurement - self.reference) * interval
+        self.current_value += (self.reference - measurement) * interval
         return self.current_value
 
     # Set functions
@@ -51,6 +54,16 @@ class IntegralController:
 
     def set_value(self, new_value):
         self.current_value = new_value
+
+
+class DataLogger:
+    def __init__(self, filename: str):
+        self.filename = filename
+
+    def measurement(self, timestamp, unit, value):
+        with open(self.filename, "a") as file:
+            dump({"unit": unit, "value": value, "time_stamp": timestamp}, file)
+            file.write("\n")
 
 
 # Test script

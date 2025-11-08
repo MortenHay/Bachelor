@@ -3,7 +3,7 @@ from websockets.asyncio.server import broadcast, serve
 from websockets.exceptions import ConnectionClosed
 import json
 import datetime as dt
-from controllers import IntegralController, DroopController
+from controllers import IntegralController, DroopController, DataLogger
 import hashlib
 import pandas as pd
 
@@ -20,13 +20,14 @@ droop_constant = 1
 def supervisor_droop_constant(droop: DroopController):
     global droop_constant
     droop_constant = frequency_span / active_bid
-    droop.set_Kp(1 / droop_constant)
+    droop.set_R(droop_constant)
 
 
 def edge_droop_constant(websocket):
-    global droop_constant, total_capacity
+    global droop_constant, total_capacity, active_bid
     this_capacity = connected_clients[websocket]
-    return droop_constant * this_capacity / total_capacity
+    this_provision = active_bid * this_capacity / total_capacity
+    return frequency_span / this_provision
 
 
 def update_total_system_capacity(connected: dict):
@@ -39,9 +40,12 @@ def update_total_system_capacity(connected: dict):
 
 async def update_all_droop_constants():
     total_capacity_inv = 1.0 / update_total_system_capacity(connected_clients)
+    frequency_span_inv = 1.0 / frequency_span
+    # Calculate single constant to scale unit capacities
+    scaling_constant = total_capacity_inv * frequency_span_inv * active_bid
     tasks = []
     for websocket, values in connected_clients.items():
-        R_i = active_bid * values["capacity"] * total_capacity_inv
+        R_i = scaling_constant * values["capacity"]
         data = {"type": "droop constant", "value": R_i}
         message = json.dumps(data)
         tasks.append(asyncio.create_task(websocket.send(message)))
@@ -59,7 +63,7 @@ async def update_controllers(
     # Cascaded droop to integrator control action
     # Generate Power setpoint from frequency measurement
     activation_setpoint = droop.update(frequency_measurement)
-    activation_setpoint = clamp(activation_setpoint, 0, active_bid)
+    activation_setpoint = clamp(activation_setpoint, active_bid, 0)
     # Use as reference for integrator and return integrated signal
     integrator.set_reference(activation_setpoint)
     return integrator.update(
