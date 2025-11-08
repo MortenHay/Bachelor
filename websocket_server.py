@@ -99,7 +99,7 @@ def clamp(x, x_min, x_max):
     return x
 
 
-async def consumer_handler(websocket):
+async def consumer_handler(websocket, datalogger: DataLogger | None = None):
     capacity_old = connected_clients[websocket]["capacity"]
     async for message in websocket:
         try:
@@ -107,6 +107,19 @@ async def consumer_handler(websocket):
             if data["type"] == "measurement":
                 connected_clients[websocket]["capacity"] = data["capacity"]
                 connected_clients[websocket]["delta P"] = data["delta P"]
+                if datalogger:
+                    datalogger.measurement(
+                        data["timesstamp"],
+                        connected_clients[websocket]["name"],
+                        "capacity",
+                        data["capacity"],
+                    )
+                    datalogger.measurement(
+                        data["timesstamp"],
+                        connected_clients[websocket]["name"],
+                        "delta P",
+                        data["capacity"],
+                    )
             if connected_clients[websocket]["capacity"] != capacity_old:
                 update_total_system_capacity(connected_clients)
         except Exception as e:
@@ -114,12 +127,19 @@ async def consumer_handler(websocket):
             print(e)
 
 
-async def producer_handler(websocket):
+async def producer_handler(websocket, datalogger: DataLogger | None = None):
     droop_constant_old = connected_clients[websocket]["droop constant"]
     while True:
         try:
             droop_constant_new = edge_droop_constant(websocket)
             if droop_constant_new != droop_constant_old:
+                if datalogger:
+                    datalogger.measurement(
+                        timestamp(),
+                        connected_clients[websocket],
+                        "droop constant",
+                        droop_constant_new,
+                    )
                 message = json.dumps(
                     {"type": "droop constant", "value": droop_constant_new}
                 )
@@ -131,8 +151,12 @@ async def producer_handler(websocket):
             break
 
 
+def timestamp():
+    return dt.datetime.now().timestamp()
+
+
 # Function to handle each client connection
-async def handle_client(websocket):
+async def handle_client(websocket, datalogger: DataLogger | None = None):
     # Receive init message from websocket
     message = await websocket.recv()
     try:
@@ -152,6 +176,10 @@ async def handle_client(websocket):
                 "name": data["name"],
                 "capacity": data["capacity"],
             }
+            if datalogger:
+                datalogger.measurement(
+                    data["timestamp"], data["name"], "capacity", data["capacity"]
+                )
             print(f"Client connected, {data['name']}")
             # Send positive response
             response = json.dumps({"type": "acknowledgement", "message": "Connected"})
@@ -169,8 +197,8 @@ async def handle_client(websocket):
         await websocket.send(response)
     # Start input (consumer) and output (producer) handler functions.
     await update_all_droop_constants()
-    consumer_task = asyncio.create_task(consumer_handler(websocket))
-    producer_task = asyncio.create_task(producer_handler(websocket))
+    consumer_task = asyncio.create_task(consumer_handler(websocket, datalogger))
+    producer_task = asyncio.create_task(producer_handler(websocket, datalogger))
     # Continue above handlers until client disconnects
     done, pending = await asyncio.wait(
         [consumer_task, producer_task],
@@ -189,6 +217,7 @@ async def main():
     # Initialize controllers
     integrator = IntegralController(Ki, 0, 0)
     droop = DroopController(0, 50, 0.1)
+    logger = DataLogger(f"/tests/{dt.datetime.now()}.json")
 
     # Open asynchronous server and serve forever
     async with serve(handle_client, "localhost", 12345) as server:
@@ -200,15 +229,24 @@ async def main():
             time_new = dt.datetime.now()
             # Update cascaded droop and integral controllers
             # Returned is the integrated supervisor control signal
+            frequency = measure_frequency()
+            logger.measurement(timestamp(), "supervisor", "frequency", frequency)
+            system_activation = get_system_activation()
+            logger.measurement(
+                timestamp(), "supervisor", "delta P system", system_activation
+            )
             delta_P_supervisor = await update_controllers(
                 droop,
                 integrator,
-                frequency_measurement=measure_frequency(),
-                system_power=get_system_activation(),
+                frequency_measurement=frequency,
+                system_power=system_activation,
                 time_old=time_old,
                 time_new=time_new,
             )
             # Broadcast to all connected clients
+            logger.measurement(
+                timestamp(), "supervisor", "delta P supervisor", delta_P_supervisor
+            )
             broadcast(
                 connected_clients,
                 json.dumps({"type": "delta P supervisor", "value": delta_P_supervisor}),

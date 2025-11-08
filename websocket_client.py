@@ -12,6 +12,7 @@ async def establish_connection(websocket, key, parameters):
             "name": parameters["name"],
             "key": key,
             "capacity": parameters["capacity"],
+            "timestamp": dt.datetime.now().timestamp(),
         }
     )
     await websocket.send(message)
@@ -38,6 +39,7 @@ async def producer_handler(websocket, parameters):
             "type": "measurement",
             "delta P": parameters["delta P"],
             "capacity": parameters["capacity"],
+            "timestamp": dt.datetime.now().timestamp(),
         }
         message = json.dumps(data)
         await websocket.send(message)

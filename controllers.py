@@ -60,9 +60,12 @@ class DataLogger:
     def __init__(self, filename: str):
         self.filename = filename
 
-    def measurement(self, timestamp, unit, value):
+    def measurement(self, timestamp, unit, type, value):
         with open(self.filename, "a") as file:
-            dump({"unit": unit, "value": value, "time_stamp": timestamp}, file)
+            dump(
+                {"unit": unit, "type": type, "value": value, "time_stamp": timestamp},
+                file,
+            )
             file.write("\n")
 
 
