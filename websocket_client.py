@@ -20,17 +20,16 @@ async def establish_connection(websocket, key, parameters):
     data = json.loads(response)
     if data["type"] == "acknowledgement":
         print(data["message"])
+        parameters["synthetic start"] = data["synthetic start"]
 
 
 async def consumer_handler(websocket, parameters: dict):
     async for message in websocket:
         data = json.loads(message)
         if data["type"] == "droop constant":
-            print(data["value"])
             parameters["droop constant"] = data["value"]
         elif data["type"] == "delta P supervisor":
-            print(f"Delta P supervisor: {data['value']}")
-            parameters["Delta P supervisor"] = data["value"]
+            parameters["delta P supervisor"] = data["value"]
 
 
 async def producer_handler(websocket, parameters):

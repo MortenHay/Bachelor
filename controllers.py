@@ -23,7 +23,7 @@ class DroopController:
 
     # Set functions
     def set_R(self, R):
-        self.Kp = R
+        self.R = R
 
     def set_reference(self, reference):
         self.reference = reference
@@ -42,7 +42,7 @@ class IntegralController:
     def update(self, measurement, interval):
         # Main integral control action
         # Add area under error curve since last measurement
-        self.current_value += (self.reference - measurement) * interval
+        self.current_value += self.Ki * (self.reference - measurement) * interval
         return self.current_value
 
     # Set functions

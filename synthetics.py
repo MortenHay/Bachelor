@@ -1,6 +1,7 @@
 import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
+import asyncio
 
 
 class Ramp:
@@ -48,6 +49,25 @@ class FastRampTest:
 
     def s(self, seconds):
         return self.start_time + dt.timedelta(seconds=seconds)
+
+
+class Inverter:
+    def __init__(self, capacity=1.0):
+        self.capacity = capacity
+        self.power = capacity
+
+    async def set_power(self, power):
+        await asyncio.sleep(0.5)
+        self.power = power
+
+    def set_capacity(self, capacity):
+        self.capacity = capacity
+
+    def measure_ac_power(self):
+        return self.power
+
+    def measure_baseline(self):
+        return self.capacity
 
 
 if __name__ == "__main__":

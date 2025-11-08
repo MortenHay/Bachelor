@@ -20,7 +20,9 @@ def main():
             df = df[df.loc[:, "name"] != new_name]
 
     new_key = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-    new_salt = os.urandom(16)
+    new_salt = "".join(
+        random.choices(string.ascii_letters + string.digits, k=16)
+    ).encode("utf-8")
     new_hash = hashlib.pbkdf2_hmac("sha256", new_key.encode("utf-8"), new_salt, 1)
     print("New unit registered")
     print("Please save key. It cannot be recovered")

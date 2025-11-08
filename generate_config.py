@@ -2,9 +2,9 @@ import json
 
 config = {
     "name": "pi_1",
-    "ip": "192.168.0.99",
-    "port": 48630,
-    "capacity": 1e6,
+    "ip": "localhost",
+    "port": 12345,
+    "capacity": 1.0,
     "modbus address": "dev/0",
     "baudrate": 9600,
     "WMaxLimPct": 40243,

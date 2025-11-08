@@ -5,6 +5,7 @@ import datetime as dt
 from pymodbus.client import AsyncModbusSerialClient
 import json
 from numpy import mean
+import synthetics
 
 
 async def measure_frequency(client: AsyncModbusSerialClient, address):
@@ -12,8 +13,10 @@ async def measure_frequency(client: AsyncModbusSerialClient, address):
     return client.convert_from_registers(f.registers, client.DATATYPE.FLOAT64)
 
 
-async def measure_baseline(baseline_list: list, current_index: int, size: int):
-    new_baseline = 1e6
+async def measure_baseline(
+    sensor: synthetics.Inverter, baseline_list: list, current_index: int, size: int
+):
+    new_baseline = sensor.measure_baseline()
     if len(baseline_list) < size:
         baseline_list.append(new_baseline)
     else:
@@ -61,6 +64,7 @@ def init():
         "delta P": 0,
         "droop constant": 0,
         "delta P supervisor": 0,
+        "synthetic start": 0,
     }
 
     return parameters, config
@@ -70,40 +74,54 @@ async def main():
     parameters, config = init()
     t1 = asyncio.create_task(websocket_client.main(parameters))
     droop = DroopController(0, 50, 0.1)
-    modbus_client = AsyncModbusSerialClient(config["modbus address"])
-    await modbus_client.connect()
+    ### Synthetic branch
+    inverter = synthetics.Inverter()
+    #    modbus_client = AsyncModbusSerialClient(config["modbus address"])
+    #    await modbus_client.connect()
+    ###
     baseline_list = []
     baseline_list_size = 60
     current_index = 0
-    t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
+    # t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
     try:
         while True:
             while not t1.done():
-                droop.set_R(parameters["droop constant"])
-                delta_P_edge = droop.update(
-                    await measure_frequency(modbus_client, config["Line Frequency"])
+                while parameters["synthetic start"] == 0:
+                    await asyncio.sleep(1)
+                test = synthetics.FastRampTest(
+                    dt.datetime.fromtimestamp(parameters["synthetic start"])
                 )
+                droop.set_R(parameters["droop constant"])
+                delta_P_edge = droop.update(test.measure_frequency(dt.datetime.now()))
                 baseline, current_index = await measure_baseline(
-                    baseline_list, current_index, baseline_list_size
+                    inverter, baseline_list, current_index, baseline_list_size
                 )
                 delta_P = delta_P_edge + parameters["delta P supervisor"]
                 # Flip sign of droop
-                delta_P = clamp(delta_P, baseline, 0)
+                delta_P = clamp(delta_P, -baseline, 0)
                 P_set = baseline + delta_P
-                await modbus_send_Pset(modbus_client, config["WMaxLimPct"], P_set)
-                P_measurement = await measure_ac_power(
-                    modbus_client, config["AC Power"]
-                )
-                parameters["delta P"] = baseline - P_measurement  # type: ignore #
+                ### Synthetic branch
+                # await modbus_send_Pset(modbus_client, config["WMaxLimPct"], P_set)
+                # P_measurement = await measure_ac_power(
+                #    modbus_client, config["AC Power"]
+                # )
+                await inverter.set_power(P_set)
+                P_measurement = inverter.measure_ac_power()
+                ###
+                parameters["delta P"] = P_measurement - baseline  # type: ignore #
+                print("Target: ", delta_P)
+                print("Delta P:", parameters["delta P"])
                 await asyncio.sleep(1)
             print("Lost connection to supervisor.")
             print("Reconnecting ...")
             t1 = asyncio.create_task(websocket_client.main(parameters))
 
     finally:
-        modbus_client.close()
+        # modbus_client.close()
         t1.cancel()
-        t2.cancel()
+
+
+#        t2.cancel()
 
 
 if __name__ == "__main__":
