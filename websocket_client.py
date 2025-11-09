@@ -48,7 +48,7 @@ async def producer_handler(websocket, parameters):
 async def main(parameters: dict):
     uri = f"ws://{parameters['supervisor ip']}:{parameters['supervisor port']}"
     with open("key.txt") as f:
-        key = f.read()
+        key = f.read().replace("\n", "")
     async with connect(uri) as websocket:
         await establish_connection(websocket, key, parameters)
         consumer_task = asyncio.create_task(consumer_handler(websocket, parameters))

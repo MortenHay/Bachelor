@@ -248,7 +248,7 @@ async def main():
 
     # Open asynchronous server and serve forever
     async with serve(
-        partial(handle_client, datalogger=logger), "localhost", 12345
+        partial(handle_client, datalogger=logger), "0.0.0.0", 12345
     ) as server:
         t1 = asyncio.create_task(server.serve_forever())
 
