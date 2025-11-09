@@ -12,7 +12,7 @@ from functools import partial
 # Set of connected clients
 connected_clients = {}
 # global variables
-Ki = 1 / 100
+Ki = 1 / 7.5
 total_capacity = 0
 active_bid = 0.75
 frequency_span = 0.4  # Hz
@@ -73,7 +73,7 @@ async def update_controllers(
     integrator.set_reference(activation_setpoint)
     print("Activation setpoint: ", activation_setpoint)
     print("Error: ", system_activation - activation_setpoint)
-    return integrator.update(
+    return activation_setpoint, integrator.update(
         measurement=system_activation, interval=(time_new - time_old).total_seconds()
     )
 
@@ -239,10 +239,12 @@ async def main():
     logger = DataLogger(f"tests/{dt.datetime.now().strftime("%d%m%y,%H%M%S")}.json")
 
     ### Synthetic branch
-    test_start = dt.datetime.now() + dt.timedelta(seconds=-20)
+    test_start = dt.datetime.now()  # + dt.timedelta(seconds=-680)
     test = synthetics.FastRampTest(test_start)
     logger.measurement(timestamp(), "supervisor", "start", test_start.timestamp())
     ###
+
+    event_timeout = 0
 
     # Open asynchronous server and serve forever
     async with serve(
@@ -262,7 +264,7 @@ async def main():
             logger.measurement(
                 timestamp(), "supervisor", "delta P system", system_activation
             )
-            delta_P_supervisor = await update_controllers(
+            activation_setpoint, delta_P_supervisor = await update_controllers(
                 droop,
                 integrator,
                 frequency_measurement=frequency,
@@ -270,6 +272,12 @@ async def main():
                 time_old=time_old,
                 time_new=time_new,
             )
+            if activation_setpoint > 0:
+                event_timeout = 0
+            else:
+                event_timeout += 1
+                if event_timeout >= 5:
+                    integrator.set_value(0)
             print("Delta P Supervisor ", delta_P_supervisor)
             # Broadcast to all connected clients
             logger.measurement(

@@ -96,9 +96,12 @@ async def main():
                 baseline, current_index = await measure_baseline(
                     inverter, baseline_list, current_index, baseline_list_size
                 )
+                delta_P_edge = clamp(
+                    delta_P_edge, -0.4 / parameters["droop constant"], 0
+                )
                 delta_P = delta_P_edge + parameters["delta P supervisor"]
-                # Flip sign of droop
                 delta_P = clamp(delta_P, -baseline, 0)
+                # Flip sign of droop
                 P_set = baseline + delta_P
                 ### Synthetic branch
                 # await modbus_send_Pset(modbus_client, config["WMaxLimPct"], P_set)
