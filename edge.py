@@ -65,6 +65,7 @@ def init():
         "droop constant": 0,
         "delta P supervisor": 0,
         "synthetic start": 0,
+        "connected": False,
     }
 
     return parameters, config
@@ -75,17 +76,20 @@ async def main():
     t1 = asyncio.create_task(websocket_client.main(parameters))
     droop = DroopController(0, 50, 0.1)
     ### Synthetic branch
-    inverter = synthetics.Inverter()
+    inverter = synthetics.Inverter(0.6)
     #    modbus_client = AsyncModbusSerialClient(config["modbus address"])
     #    await modbus_client.connect()
     ###
     baseline_list = []
     baseline_list_size = 60
     current_index = 0
-    # t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
+    t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
     try:
         while True:
             while not t1.done():
+                while not parameters["connected"]:
+                    print("Connecting ...")
+                    await asyncio.sleep(5)
                 while parameters["synthetic start"] == 0:
                     await asyncio.sleep(1)
                 test = synthetics.FastRampTest(
@@ -115,6 +119,7 @@ async def main():
                 print("Target: ", delta_P)
                 print("Delta P:", parameters["delta P"])
                 await asyncio.sleep(1)
+            parameters["connected"] = False
             print("Lost connection to supervisor.")
             print("Reconnecting ...")
             t1 = asyncio.create_task(websocket_client.main(parameters))

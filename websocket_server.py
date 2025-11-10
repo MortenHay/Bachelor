@@ -12,9 +12,9 @@ from functools import partial
 # Set of connected clients
 connected_clients = {}
 # global variables
-Ki = 1 / 7.5
+Ki = 1 / 15
 total_capacity = 0
-active_bid = 0.75
+active_bid = 1.5
 frequency_span = 0.4  # Hz
 droop_constant = 1
 
@@ -272,7 +272,7 @@ async def main():
                 time_old=time_old,
                 time_new=time_new,
             )
-            if activation_setpoint > 0:
+            if activation_setpoint < 0:
                 event_timeout = 0
             else:
                 event_timeout += 1

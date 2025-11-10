@@ -21,6 +21,7 @@ async def establish_connection(websocket, key, parameters):
     if data["type"] == "acknowledgement":
         print(data["message"])
         parameters["synthetic start"] = data["synthetic start"]
+        parameters["connected"] = True
 
 
 async def consumer_handler(websocket, parameters: dict):
@@ -46,20 +47,34 @@ async def producer_handler(websocket, parameters):
 
 
 async def main(parameters: dict):
-    uri = f"ws://{parameters['supervisor ip']}:{parameters['supervisor port']}"
-    with open("key.txt") as f:
-        key = f.read().replace("\n", "")
-    async with connect(uri) as websocket:
-        await establish_connection(websocket, key, parameters)
-        consumer_task = asyncio.create_task(consumer_handler(websocket, parameters))
-        producer_task = asyncio.create_task(producer_handler(websocket, parameters))
-        done, pending = await asyncio.wait(
-            [consumer_task, producer_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        print(done)
-        for task in pending:
-            task.cancel()
+    flag = True
+    while flag:
+        uri = f"ws://{parameters['supervisor ip']}:{parameters['supervisor port']}"
+        with open("key.txt") as f:
+            key = f.read().replace("\n", "")
+        try:
+            print("1")
+            async with connect(uri, open_timeout=3) as websocket:
+                print("2")
+                await establish_connection(websocket, key, parameters)
+                flag = False
+                print("3")
+                consumer_task = asyncio.create_task(
+                    consumer_handler(websocket, parameters)
+                )
+                producer_task = asyncio.create_task(
+                    producer_handler(websocket, parameters)
+                )
+                done, pending = await asyncio.wait(
+                    [consumer_task, producer_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                print(done)
+                for task in pending:
+                    task.cancel()
+        except TimeoutError:
+            print("Timeout reached. Retrying ...")
+            pass
 
 
 if __name__ == "__main__":
