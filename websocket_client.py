@@ -53,12 +53,9 @@ async def main(parameters: dict):
         with open("key.txt") as f:
             key = f.read().replace("\n", "")
         try:
-            print("1")
             async with connect(uri, open_timeout=3) as websocket:
-                print("2")
                 await establish_connection(websocket, key, parameters)
                 flag = False
-                print("3")
                 consumer_task = asyncio.create_task(
                     consumer_handler(websocket, parameters)
                 )

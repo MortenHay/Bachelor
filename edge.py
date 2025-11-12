@@ -83,7 +83,7 @@ async def main():
     baseline_list = []
     baseline_list_size = 60
     current_index = 0
-    t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
+    # t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
     try:
         while True:
             while not t1.done():
