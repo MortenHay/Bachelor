@@ -52,12 +52,13 @@ class FastRampTest:
 
 
 class Inverter:
-    def __init__(self, capacity=1.0):
+    def __init__(self, capacity=1.0, delay=1.0):
         self.capacity = capacity
         self.power = capacity
+        self.delay = delay
 
     async def set_power(self, power):
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(self.delay)
         self.power = power
 
     def set_capacity(self, capacity):
