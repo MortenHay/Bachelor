@@ -76,7 +76,7 @@ async def main():
     t1 = asyncio.create_task(websocket_client.main(parameters))
     droop = DroopController(0, 50, 0.1)
     ### Synthetic branch
-    inverter = synthetics.Inverter(1, 3.0)
+    inverter = synthetics.Inverter(1.2, 3.0)
     #    modbus_client = AsyncModbusSerialClient(config["modbus address"])
     #    await modbus_client.connect()
     ###
@@ -112,7 +112,7 @@ async def main():
                 # P_measurement = await measure_ac_power(
                 #    modbus_client, config["AC Power"]
                 # )
-                await inverter.set_power(P_set)
+                asyncio.create_task(inverter.set_power(P_set))
                 P_measurement = inverter.measure_ac_power()
                 ###
                 parameters["delta P"] = P_measurement - baseline  # type: ignore #
