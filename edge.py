@@ -76,7 +76,7 @@ async def main():
     t1 = asyncio.create_task(websocket_client.main(parameters))
     droop = DroopController(0, 50, 0.1)
     ### Synthetic branch
-    inverter = synthetics.Inverter(1.2, 3.0)
+    inverter = synthetics.Inverter(0.6, 0.5)
     #    modbus_client = AsyncModbusSerialClient(config["modbus address"])
     #    await modbus_client.connect()
     ###

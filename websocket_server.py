@@ -12,7 +12,7 @@ from functools import partial
 # Set of connected clients
 connected_clients = {}
 # global variables
-Ki = 1 / 15
+Ki = 1 / 30
 total_capacity = 0
 active_bid = 1.5
 frequency_span = 0.4  # Hz
