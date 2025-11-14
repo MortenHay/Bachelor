@@ -8,15 +8,59 @@ from numpy import mean
 import synthetics
 
 
-async def measure_frequency(client: AsyncModbusSerialClient, address):
-    f = await client.read_holding_registers(address, count=2)
-    return client.convert_from_registers(f.registers, client.DATATYPE.FLOAT64)
+async def modbus_init_client(config: dict):
+    modbus_client = AsyncModbusSerialClient(
+        port=config["modbus address"],
+        timeout=3,
+        baudrate=int(config["baudrate"]),
+        bytesize=int(config["bytesize"]),
+        parity=config["parity"],
+        stopbits=int(config["stopbits"]),
+    )
+    await modbus_client.connect()
+    # Start power limit operating mode with no cap
+    await modbus_write(modbus_client, "WMaxLimPct", config, 100)
+    await modbus_write(modbus_client, "WMaxLim_Ena", config, 1)
+    return modbus_client
 
 
-async def measure_baseline(
-    sensor: synthetics.Inverter, baseline_list: list, current_index: int, size: int
+async def modbus_read(client: AsyncModbusSerialClient, command: str, config: dict):
+    com_dict = config[command]
+    rr = await client.read_holding_registers(
+        com_dict["address"], count=com_dict["count"]
+    )
+    return (
+        client.convert_from_registers(
+            rr.registers, getattr(client.DATATYPE, com_dict["datatype"])
+        )
+        * com_dict["scalefactor"]
+    )
+
+
+async def modbus_write(
+    client: AsyncModbusSerialClient, command: str, config: dict, value
 ):
-    new_baseline = sensor.measure_baseline()
+    com_dict = config[command]
+    scale = int(1 / com_dict["scalefactor"])
+    value = value * scale
+    if "INT" in com_dict["datatype"]:
+        value = int(value)
+    print("Sending ", value, " to ", command)
+    rr = client.convert_to_registers(
+        value,
+        getattr(client.DATATYPE, com_dict["datatype"]),
+    )
+    return await client.write_registers(com_dict["address"], rr)
+
+
+async def measure_frequency(client: AsyncModbusSerialClient, config):
+    return await modbus_read(client, "Line Frequency", config)
+
+
+async def measure_baseline(sensor, baseline_list: list, current_index: int, size: int):
+    # No actual sensors connected
+    # new_baseline = sensor["capacity"]
+    new_baseline = sensor
     if len(baseline_list) < size:
         baseline_list.append(new_baseline)
     else:
@@ -26,15 +70,17 @@ async def measure_baseline(
     return new_baseline, current_index
 
 
-async def modbus_send_Pset(client: AsyncModbusSerialClient, address, Pset):
-    registers = client.convert_to_registers(Pset, client.DATATYPE.FLOAT64)
-    response = await client.write_registers(address, registers)
-    return response
+async def send_Pset(client: AsyncModbusSerialClient, config, Pset):
+    percentage = Pset / config["WMaxLimPct"]["inverter cap"] * 100
+    print("sending P__set: ", percentage, "%")
+    await modbus_write(client, "WMaxLimPct", config, percentage)
+    await modbus_write(client, "WMaxLim_Ena", config, 1)
+    print("WmaxLimPct read: ", await modbus_read(client, "WMaxLimPct", config))
+    print("WmaxLim_Ena read: ", await modbus_read(client, "WMaxLim_Ena", config))
 
 
-async def measure_ac_power(client: AsyncModbusSerialClient, address):
-    P = await client.read_holding_registers(address, count=2)
-    return client.convert_from_registers(P.registers, client.DATATYPE.FLOAT64)
+async def measure_ac_power(client: AsyncModbusSerialClient, config):
+    return await modbus_read(client, "AC Power", config)
 
 
 def clamp(x, x_min, x_max):
@@ -75,20 +121,23 @@ async def main():
     parameters, config = init()
     t1 = asyncio.create_task(websocket_client.main(parameters))
     droop = DroopController(0, 50, 0.1)
-    ### Synthetic branch
-    inverter = synthetics.Inverter(0.6, 0.5)
-    #    modbus_client = AsyncModbusSerialClient(config["modbus address"])
-    #    await modbus_client.connect()
-    ###
+
+    modbus_client = await modbus_init_client(config)
+
     baseline_list = []
     baseline_list_size = 60
     current_index = 0
-    # t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
+    P_measurement = await measure_ac_power(modbus_client, config)
+    baseline, current_index = await measure_baseline(
+        P_measurement, baseline_list, current_index, baseline_list_size
+    )
+    t2 = asyncio.create_task(update_capacity(baseline_list, parameters))
     try:
         while True:
             while not t1.done():
                 while not parameters["connected"]:
                     print("Connecting ...")
+
                     await asyncio.sleep(5)
                 while parameters["synthetic start"] == 0:
                     await asyncio.sleep(1)
@@ -96,26 +145,28 @@ async def main():
                     dt.datetime.fromtimestamp(parameters["synthetic start"])
                 )
                 droop.set_R(parameters["droop constant"])
-                delta_P_edge = droop.update(test.measure_frequency(dt.datetime.now()))
-                baseline, current_index = await measure_baseline(
-                    inverter, baseline_list, current_index, baseline_list_size
-                )
+                frequency_measurement = test.measure_frequency(dt.datetime.now())
+                delta_P_edge = droop.update(frequency_measurement)
                 delta_P_edge = clamp(
                     delta_P_edge, -0.4 / parameters["droop constant"], 0
                 )
                 delta_P = delta_P_edge + parameters["delta P supervisor"]
+
                 delta_P = clamp(delta_P, -baseline, 0)
                 # Flip sign of droop
-                P_set = baseline + delta_P
-                ### Synthetic branch
-                # await modbus_send_Pset(modbus_client, config["WMaxLimPct"], P_set)
-                # P_measurement = await measure_ac_power(
-                #    modbus_client, config["AC Power"]
-                # )
-                asyncio.create_task(inverter.set_power(P_set))
-                P_measurement = inverter.measure_ac_power()
+                if delta_P < 0:
+                    P_set = baseline + delta_P
+                    await send_Pset(modbus_client, config, P_set)
+                    P_measurement = await measure_ac_power(modbus_client, config)
+
+                else:
+                    await modbus_write(modbus_client, "WMaxLim_Ena", config, 0)
+                    P_measurement = await measure_ac_power(modbus_client, config)
+                    baseline, current_index = await measure_baseline(
+                        P_measurement, baseline_list, current_index, baseline_list_size
+                    )
                 ###
-                parameters["delta P"] = P_measurement - baseline  # type: ignore #
+                parameters["delta P"] = min(P_measurement - baseline, 0)  # type: ignore #
                 print("Target: ", delta_P)
                 print("Delta P:", parameters["delta P"])
                 await asyncio.sleep(1)
@@ -125,7 +176,9 @@ async def main():
             t1 = asyncio.create_task(websocket_client.main(parameters))
 
     finally:
-        # modbus_client.close()
+        await modbus_write(modbus_client, "WMaxLim_Ena", config, 0)
+        await modbus_write(modbus_client, "WMaxLimPct", config, 100)
+        modbus_client.close()
         t1.cancel()
 
 

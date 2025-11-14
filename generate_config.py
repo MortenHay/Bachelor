@@ -4,7 +4,7 @@ config = {
     "name": "pi_1",
     "ip": "localhost",
     "port": 12345,
-    "capacity": 1.0,
+    "capacity": 1.5e3,
     "modbus address": "COM4",
     "baudrate": 9600,
     "parity": "N",
@@ -15,6 +15,7 @@ config = {
         "scalefactor": 1e-2,
         "datatype": "UINT16",
         "count": 1,
+        "inverter cap": 20e3,
     },
     "WMaxLim_Ena": {
         "address": 40247 - 1,
