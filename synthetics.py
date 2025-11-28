@@ -2,6 +2,7 @@ import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
 import asyncio
+import pandas as pd
 
 
 class Ramp:
@@ -49,6 +50,21 @@ class FastRampTest:
 
     def s(self, seconds):
         return self.start_time + dt.timedelta(seconds=seconds)
+
+
+class sine_test:
+    def __init__(self, test_csv, time_start) -> None:
+        self.df = pd.read_csv(test_csv, delimiter=";", decimal=",").dropna()
+        self.time_start = time_start
+
+    def measure_frequency(self, time):
+        offset = (time - self.time_start).total_seconds()
+        if offset <= self.df["Time"].iloc[0]:
+            return 50
+        elif offset <= self.df["Time"].iloc[-1]:
+            return np.interp(offset, self.df["Time"], self.df["Frequency"])
+        else:
+            return 50
 
 
 class Inverter:

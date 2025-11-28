@@ -39,11 +39,12 @@ async def producer_handler(websocket, parameters):
             "type": "measurement",
             "delta P": parameters["delta P"],
             "capacity": parameters["capacity"],
+            "power": parameters["power"],
             "timestamp": dt.datetime.now().timestamp(),
         }
         message = json.dumps(data)
         await websocket.send(message)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
 
 async def main(parameters: dict):

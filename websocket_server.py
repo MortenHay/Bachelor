@@ -12,9 +12,9 @@ from functools import partial
 # Set of connected clients
 connected_clients = {}
 # global variables
-Ki = 1 / 30
+Ki = 1 / 15
 total_capacity = 0
-active_bid = 10
+active_bid = 1e3
 frequency_span = 0.4  # Hz
 droop_constant = 1
 
@@ -239,8 +239,9 @@ async def main():
     logger = DataLogger(f"tests/{dt.datetime.now().strftime("%d%m%y,%H%M%S")}.json")
 
     ### Synthetic branch
-    test_start = dt.datetime.now()  # + dt.timedelta(seconds=-680)
-    test = synthetics.FastRampTest(test_start)
+    test_start = dt.datetime.now() + dt.timedelta(seconds=5)
+    # test = synthetics.FastRampTest(test_start)
+    test = synthetics.sine_test("sine_test.csv", test_start)
     logger.measurement(timestamp(), "supervisor", "start", test_start.timestamp())
     ###
 

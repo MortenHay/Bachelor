@@ -107,6 +107,7 @@ def init():
         "capacity": config["capacity"],
         "supervisor ip": config["ip"],
         "supervisor port": config["port"],
+        "power": 0,
         "delta P": 0,
         "droop constant": 0,
         "delta P supervisor": 0,
@@ -141,8 +142,12 @@ async def main():
                     await asyncio.sleep(5)
                 while parameters["synthetic start"] == 0:
                     await asyncio.sleep(1)
-                test = synthetics.FastRampTest(
+                """test = synthetics.FastRampTest(
                     dt.datetime.fromtimestamp(parameters["synthetic start"])
+                )"""
+                test = synthetics.sine_test(
+                    "sine_test.csv",
+                    dt.datetime.fromtimestamp(parameters["synthetic start"]),
                 )
                 droop.set_R(parameters["droop constant"])
                 frequency_measurement = test.measure_frequency(dt.datetime.now())
@@ -167,9 +172,10 @@ async def main():
                     )
                 ###
                 parameters["delta P"] = min(P_measurement - baseline, 0)  # type: ignore #
+                parameters["power"] = P_measurement
                 print("Target: ", delta_P)
                 print("Delta P:", parameters["delta P"])
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
             parameters["connected"] = False
             print("Lost connection to supervisor.")
             print("Reconnecting ...")
