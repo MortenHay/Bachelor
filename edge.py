@@ -9,6 +9,14 @@ import synthetics
 
 
 async def modbus_init_client(config: dict):
+    """_summary_
+
+    Args:
+        config (dict): _description_
+
+    Returns:
+        _type_: _description_
+    """
     modbus_client = AsyncModbusSerialClient(
         port=config["modbus address"],
         timeout=3,
